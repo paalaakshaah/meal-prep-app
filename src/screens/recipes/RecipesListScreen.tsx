@@ -91,6 +91,7 @@ export default function RecipesListScreen() {
                     <Text style={styles.subtitle}>
                       {item.meal_type[0].toUpperCase() + item.meal_type.slice(1)} · {item.servings} serving
                       {item.servings === 1 ? '' : 's'}
+                      {item.isQuickEstimate ? ' · Quick estimate' : ''}
                     </Text>
                   </View>
                   <Pressable

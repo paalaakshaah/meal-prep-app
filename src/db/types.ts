@@ -40,6 +40,9 @@ export type Recipe = {
 
 export type RecipeWithMacros = Recipe & {
   perServing: Macros | null; // null if the recipe somehow has no ingredients yet
+  // true when this recipe is just a single INDB dish copied wholesale (no real
+  // ingredient breakdown) rather than something built up from raw ingredients.
+  isQuickEstimate: boolean;
 };
 
 export type RecipeIngredientInput = {

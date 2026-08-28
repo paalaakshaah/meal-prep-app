@@ -35,6 +35,17 @@ function toPerServing(row: MacrosRow | null): Macros | null {
   };
 }
 
+function checkIsQuickEstimate(recipeId: string): boolean {
+  const row = db.getFirstSync<{ cnt: number; sole_source: string | null }>(
+    `SELECT COUNT(*) AS cnt, MAX(fi.source) AS sole_source
+     FROM recipe_ingredients ri
+     JOIN food_items fi ON fi.id = ri.food_item_id
+     WHERE ri.recipe_id = ?`,
+    [recipeId]
+  );
+  return row?.cnt === 1 && row.sole_source === 'indb';
+}
+
 export function listRecipes(householdId: string, mealType?: MealType): RecipeWithMacros[] {
   const recipes = mealType
     ? db.getAllSync<Recipe>(
@@ -47,7 +58,7 @@ export function listRecipes(householdId: string, mealType?: MealType): RecipeWit
 
   return recipes.map((recipe) => {
     const macros = db.getFirstSync<MacrosRow>('SELECT * FROM recipe_macros WHERE recipe_id = ?', [recipe.id]);
-    return { ...recipe, perServing: toPerServing(macros) };
+    return { ...recipe, perServing: toPerServing(macros), isQuickEstimate: checkIsQuickEstimate(recipe.id) };
   });
 }
 
@@ -55,7 +66,7 @@ export function getRecipe(id: string): RecipeWithMacros | null {
   const recipe = db.getFirstSync<Recipe>('SELECT * FROM recipes WHERE id = ?', [id]);
   if (!recipe) return null;
   const macros = db.getFirstSync<MacrosRow>('SELECT * FROM recipe_macros WHERE recipe_id = ?', [id]);
-  return { ...recipe, perServing: toPerServing(macros) };
+  return { ...recipe, perServing: toPerServing(macros), isQuickEstimate: checkIsQuickEstimate(id) };
 }
 
 export function getRecipeIngredients(recipeId: string): RecipeIngredientDetail[] {

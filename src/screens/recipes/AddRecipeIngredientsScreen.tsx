@@ -9,10 +9,17 @@ import { fuzzySearchFoodItems } from '../../db/search';
 import { getFoodItem } from '../../db/repositories/foodItems';
 import { createRecipe } from '../../db/repositories/recipes';
 import { getDefaultHouseholdId } from '../../db/repositories/households';
-import type { Macros, MealType } from '../../db/types';
+import type { FoodSource, Macros, MealType } from '../../db/types';
 import type { RecipesStackParamList } from '../../navigation/RecipesStack';
 
-type LocalIngredient = { key: string; foodItemId: string; name: string; quantityG: number; per100g: Macros };
+type LocalIngredient = {
+  key: string;
+  foodItemId: string;
+  name: string;
+  quantityG: number;
+  per100g: Macros;
+  source: FoodSource;
+};
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const DEFAULT_SERVING_GRAMS = 150;
@@ -66,6 +73,7 @@ export default function AddRecipeIngredientsScreen() {
             fiber: item.fiber,
             sugar: item.sugar,
           },
+          source: item.source,
         },
       ];
     }
@@ -84,6 +92,7 @@ export default function AddRecipeIngredientsScreen() {
   );
 
   const perServing = computePerServing(ingredients, servings);
+  const isQuickEstimate = ingredients.length === 1 && ingredients[0].source === 'indb';
 
   function addIngredient(foodItemId: string) {
     const item = getFoodItem(foodItemId);
@@ -103,6 +112,7 @@ export default function AddRecipeIngredientsScreen() {
           fiber: item.fiber,
           sugar: item.sugar,
         },
+        source: item.source,
       },
     ]);
     setIngredientQuery('');
@@ -181,6 +191,21 @@ export default function AddRecipeIngredientsScreen() {
         </View>
 
         <Text style={styles.label}>Ingredients</Text>
+        {isQuickEstimate && (
+          <View style={styles.notice}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.accentDark} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.noticeText}>
+                This is a whole-dish estimate from the Indian Nutrient Databank, not a real ingredient
+                breakdown — the databank doesn't publish one. Macros are accurate for a typical version of this
+                dish, but not necessarily to how you actually cook it.
+              </Text>
+              <Pressable onPress={() => setIngredients([])} hitSlop={6}>
+                <Text style={styles.noticeAction}>Break it down into ingredients instead</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
         {ingredients.map((ing) => (
           <View key={ing.key} style={styles.ingredientRow}>
             <Pressable onPress={() => removeIngredient(ing.key)} hitSlop={8}>
@@ -276,6 +301,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
+  notice: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: colors.accentSoft,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+  noticeText: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.text, lineHeight: 18 },
+  noticeAction: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.accentDark, marginTop: 8 },
   pillRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
   pillActive: { backgroundColor: colors.accent },
