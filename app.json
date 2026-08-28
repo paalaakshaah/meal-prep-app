@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "meal-prep-app",
+    "name": "Meal Prep",
     "slug": "meal-prep-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,8 +10,9 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.palakshah.mealprep",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F8F4EC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,6 +21,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-font",
+      "expo-splash-screen"
+    ]
   }
 }

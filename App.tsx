@@ -1,20 +1,56 @@
+import { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
+import { useFonts, Lora_500Medium, Lora_600SemiBold, Lora_700Bold } from '@expo-google-fonts/lora';
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from '@expo-google-fonts/manrope';
+import RootNavigator from './src/navigation/RootNavigator';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
+  const [fontsLoaded, fontsError] = useFonts({
+    Lora_500Medium,
+    Lora_600SemiBold,
+    Lora_700Bold,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
+
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (fontsLoaded || fontsError) {
+      setReady(true);
+    }
+  }, [fontsLoaded, fontsError]);
+
+  const onLayoutRootView = useCallback(() => {
+    if (ready) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [ready]);
+
+  if (!ready) {
+    return null;
+  }
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider onLayout={onLayoutRootView}>
+      <NavigationContainer>
+        <RootNavigator />
+      </NavigationContainer>
+      <StatusBar style="dark" />
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
