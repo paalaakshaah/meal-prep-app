@@ -1,5 +1,9 @@
 import { openDatabaseSync } from 'expo-sqlite';
+import { createSchema } from './schema';
+import { seedDatabase } from './seed';
 
 // Single shared connection to the app's local database.
-// Schema creation and seeding (IFCT/INDB import) land here in Phase 1.
 export const db = openDatabaseSync('mealprep.db');
+
+createSchema(db);
+seedDatabase(db);

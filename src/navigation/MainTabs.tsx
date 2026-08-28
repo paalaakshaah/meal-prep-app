@@ -6,7 +6,7 @@ import { colors, fonts } from '../theme';
 import HistoryScreen from '../screens/history/HistoryScreen';
 import LogScreen from '../screens/log/LogScreen';
 import PlanScreen from '../screens/plan/PlanScreen';
-import RecipesListScreen from '../screens/recipes/RecipesListScreen';
+import RecipesStack from './RecipesStack';
 import type { RootStackParamList } from './types';
 
 export type MainTabsParamList = {
@@ -58,7 +58,7 @@ export default function MainTabs() {
         ),
       })}
     >
-      <Tab.Screen name="Recipes" component={RecipesListScreen} />
+      <Tab.Screen name="Recipes" component={RecipesStack} options={{ headerShown: false }} />
       <Tab.Screen name="Plan" component={PlanScreen} />
       <Tab.Screen name="Log" component={LogScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />

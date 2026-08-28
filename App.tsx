@@ -12,6 +12,7 @@ import {
   Manrope_800ExtraBold,
 } from '@expo-google-fonts/manrope';
 import RootNavigator from './src/navigation/RootNavigator';
+import './src/db/client';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
