@@ -1,6 +1,8 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import ifctData from '../data/ifct2017.json';
 import indbData from '../data/indb.json';
+import ukfctData from '../data/ukfct.json';
+import usfctData from '../data/usfct.json';
 import { generateId } from './ids';
 
 type IfctRow = {
@@ -28,8 +30,20 @@ type IndbRow = {
   servingGrams: number | null;
 };
 
-// Bump this whenever ifct2017.json / indb.json content changes, to force a re-seed.
-const SEED_VERSION = '1';
+type SupplementalFctRow = {
+  code: string;
+  name: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sugar: number;
+  source: 'ukfct' | 'usfct';
+};
+
+// Bump this whenever any of the bundled data files change, to force a re-seed.
+const SEED_VERSION = '2';
 
 function getMeta(db: SQLiteDatabase, key: string): string | null {
   const row = db.getFirstSync<{ value: string }>('SELECT value FROM meta WHERE key = ?', [key]);
@@ -45,12 +59,24 @@ function setMeta(db: SQLiteDatabase, key: string, value: string) {
 
 function seedFoodItems(db: SQLiteDatabase) {
   db.withTransactionSync(() => {
-    db.runSync("DELETE FROM food_items WHERE source IN ('ifct', 'indb')");
-
+    // Upsert rather than delete+reinsert: ids are deterministic (source_code),
+    // so this refreshes content on a reseed without breaking the foreign key
+    // that recipe_ingredients holds on food_items.id for existing recipes.
     const insert = db.prepareSync(
       `INSERT INTO food_items
         (id, source, external_code, household_id, name, food_group, kcal, protein, carbs, fat, fiber, sugar, serving_label, serving_grams)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         food_group = excluded.food_group,
+         kcal = excluded.kcal,
+         protein = excluded.protein,
+         carbs = excluded.carbs,
+         fat = excluded.fat,
+         fiber = excluded.fiber,
+         sugar = excluded.sugar,
+         serving_label = excluded.serving_label,
+         serving_grams = excluded.serving_grams`
     );
     try {
       for (const item of ifctData as IfctRow[]) {
@@ -85,6 +111,23 @@ function seedFoodItems(db: SQLiteDatabase) {
           item.sugar,
           item.servingLabel,
           item.servingGrams,
+        ]);
+      }
+      for (const item of [...(ukfctData as SupplementalFctRow[]), ...(usfctData as SupplementalFctRow[])]) {
+        insert.executeSync([
+          `${item.source}_${item.code}`,
+          item.source,
+          item.code,
+          item.name,
+          null,
+          item.kcal,
+          item.protein,
+          item.carbs,
+          item.fat,
+          item.fiber,
+          item.sugar,
+          null,
+          null,
         ]);
       }
     } finally {

@@ -1,4 +1,4 @@
-export type FoodSource = 'ifct' | 'indb' | 'custom' | 'ocr';
+export type FoodSource = 'ifct' | 'indb' | 'ukfct' | 'usfct' | 'custom' | 'ocr';
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 export type FoodItem = {

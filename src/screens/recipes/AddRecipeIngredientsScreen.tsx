@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, type } from '../../theme';
 import { fuzzySearchFoodItems } from '../../db/search';
 import { getFoodItem } from '../../db/repositories/foodItems';
+import { getIndbIngredientBreakdown } from '../../db/repositories/indbIngredients';
 import { createRecipe } from '../../db/repositories/recipes';
 import { getDefaultHouseholdId } from '../../db/repositories/households';
 import type { FoodSource, Macros, MealType } from '../../db/types';
@@ -55,11 +56,44 @@ export default function AddRecipeIngredientsScreen() {
     useRoute<NativeStackScreenProps<RecipesStackParamList, 'AddRecipeIngredients'>['route']>();
   const params = route.params;
 
-  const initialIngredient: LocalIngredient[] = useMemo(() => {
-    if (params?.mode === 'quickfill') {
-      const item = getFoodItem(params.dishFoodItemId);
-      if (!item) return [];
-      return [
+  const initial = useMemo((): { ingredients: LocalIngredient[]; servings: number } => {
+    if (params?.mode !== 'quickfill') return { ingredients: [], servings: 4 };
+
+    const item = getFoodItem(params.dishFoodItemId);
+    if (!item) return { ingredients: [], servings: 1 };
+
+    // Prefer the real ingredient-by-ingredient breakdown (sourced from the
+    // underlying research repo) over the whole-dish aggregate.
+    const breakdown = item.external_code ? getIndbIngredientBreakdown(item.external_code) : null;
+    if (breakdown) {
+      return {
+        servings: breakdown.servings,
+        ingredients: breakdown.ingredients.map((ing) => {
+          const foodItem = getFoodItem(ing.foodItemId)!;
+          return {
+            key: ing.foodItemId,
+            foodItemId: ing.foodItemId,
+            name: ing.name,
+            quantityG: ing.quantityG,
+            per100g: {
+              kcal: foodItem.kcal,
+              protein: foodItem.protein,
+              carbs: foodItem.carbs,
+              fat: foodItem.fat,
+              fiber: foodItem.fiber,
+              sugar: foodItem.sugar,
+            },
+            source: foodItem.source,
+          };
+        }),
+      };
+    }
+
+    // Fall back to a single whole-dish "quick estimate" row when no
+    // ingredient breakdown is available for this dish.
+    return {
+      servings: 1,
+      ingredients: [
         {
           key: item.id,
           foodItemId: item.id,
@@ -75,15 +109,14 @@ export default function AddRecipeIngredientsScreen() {
           },
           source: item.source,
         },
-      ];
-    }
-    return [];
+      ],
+    };
   }, [params]);
 
   const [name, setName] = useState(params?.mode === 'quickfill' ? params.dishName : '');
   const [mealType, setMealType] = useState<MealType>('dinner');
-  const [servings, setServings] = useState(params?.mode === 'quickfill' ? 1 : 4);
-  const [ingredients, setIngredients] = useState<LocalIngredient[]>(initialIngredient);
+  const [servings, setServings] = useState(initial.servings);
+  const [ingredients, setIngredients] = useState<LocalIngredient[]>(initial.ingredients);
   const [ingredientQuery, setIngredientQuery] = useState('');
 
   const searchResults = useMemo(

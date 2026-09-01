@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 -- Recipes are always a weighted sum of rows in this table.
 CREATE TABLE IF NOT EXISTS food_items (
   id TEXT PRIMARY KEY,
-  source TEXT NOT NULL CHECK (source IN ('ifct', 'indb', 'custom', 'ocr')),
+  source TEXT NOT NULL CHECK (source IN ('ifct', 'indb', 'ukfct', 'usfct', 'custom', 'ocr')),
   external_code TEXT,
   household_id TEXT REFERENCES households(id), -- NULL for shared ifct/indb reference data
   name TEXT NOT NULL,
@@ -131,6 +131,57 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE INDEX IF NOT EXISTS idx_logs_profile_date ON logs(profile_id, date);
 `;
 
+// Bump whenever a table definition changes (columns, CHECK constraints, etc).
+// CREATE TABLE IF NOT EXISTS is a no-op against an already-existing table, so
+// changing SCHEMA_SQL alone has no effect on-device without this — see
+// migrateIfNeeded below, which drops and recreates everything on a mismatch.
+export const SCHEMA_VERSION = '2';
+
+const ALL_TABLES = [
+  'recipe_ingredients',
+  'meal_plan_entries',
+  'grocery_list_items',
+  'grocery_lists',
+  'logs',
+  'recipes',
+  'food_items',
+  'profiles',
+  'households',
+  'meta',
+];
+
 export function createSchema(db: SQLiteDatabase) {
   db.execSync(SCHEMA_SQL);
+}
+
+function getSchemaVersion(db: SQLiteDatabase): string | null {
+  const metaExists = db.getFirstSync<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'"
+  );
+  if (!metaExists) return null;
+  const row = db.getFirstSync<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'");
+  return row?.value ?? null;
+}
+
+// This is a pre-release app with no real user data to preserve across schema
+// changes yet — so a version mismatch just wipes and rebuilds locally, rather
+// than writing a proper migration for every change. Revisit before this ships
+// with data anyone actually cares about keeping.
+export function migrateIfNeeded(db: SQLiteDatabase) {
+  const current = getSchemaVersion(db);
+  if (current === SCHEMA_VERSION) return;
+
+  db.execSync('PRAGMA foreign_keys = OFF;');
+  db.withTransactionSync(() => {
+    for (const table of ALL_TABLES) {
+      db.runSync(`DROP TABLE IF EXISTS ${table}`);
+    }
+    db.runSync('DROP VIEW IF EXISTS recipe_macros');
+  });
+  db.execSync('PRAGMA foreign_keys = ON;');
+
+  createSchema(db);
+  db.runSync("INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [
+    SCHEMA_VERSION,
+  ]);
 }
