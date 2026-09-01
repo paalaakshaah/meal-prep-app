@@ -324,6 +324,7 @@ export default function AddRecipeIngredientsScreen() {
           style={styles.addNewLink}
           onPress={() =>
             navigation.navigate('AddCustomIngredient', {
+              purpose: 'ingredient',
               initialName: ingredientQuery.trim() || undefined,
               onCreated: (item) => addIngredient(item.id),
             })

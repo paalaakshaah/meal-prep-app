@@ -59,6 +59,14 @@ export default function AddRecipeSearchScreen() {
         )}
 
         <Pressable
+          style={styles.scanBtn}
+          onPress={() => navigation.navigate('AddCustomIngredient', { purpose: 'recipe' })}
+        >
+          <Ionicons name="camera-outline" size={18} color={colors.accentDark} />
+          <Text style={styles.scanBtnText}>Scan a packaged food's label</Text>
+        </Pressable>
+
+        <Pressable
           style={styles.scratchLink}
           onPress={() => navigation.navigate('AddRecipeIngredients', { mode: 'scratch' })}
         >
@@ -94,6 +102,17 @@ const styles = StyleSheet.create({
   },
   resultRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
   resultRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  scratchLink: { alignItems: 'center', marginTop: 24 },
+  scanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.accentSoft,
+    borderRadius: 14,
+    paddingVertical: 13,
+    marginTop: 20,
+  },
+  scanBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accentDark },
+  scratchLink: { alignItems: 'center', marginTop: 20 },
   scratchText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentDark },
 });

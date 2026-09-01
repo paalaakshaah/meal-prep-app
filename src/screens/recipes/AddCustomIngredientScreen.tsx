@@ -32,7 +32,13 @@ const ocrSupported = isOcrSupported();
 export default function AddCustomIngredientScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RecipesStackParamList>>();
   const route = useRoute<NativeStackScreenProps<RecipesStackParamList, 'AddCustomIngredient'>['route']>();
-  const { initialName, onCreated } = route.params;
+  const params = route.params;
+  const initialName = params.purpose === 'ingredient' ? params.initialName : undefined;
+
+  const isNewRecipe = params.purpose === 'recipe';
+  const nameLabel = isNewRecipe ? 'Product name' : 'Ingredient name';
+  const namePlaceholder = isNewRecipe ? 'e.g. Britannia Marie Gold' : 'e.g. Homemade ghee';
+  const saveLabel = isNewRecipe ? 'Continue' : 'Add Ingredient';
 
   const [name, setName] = useState(initialName ?? '');
   const [kcal, setKcal] = useState('');
@@ -103,7 +109,7 @@ export default function AddCustomIngredientScreen() {
 
   function handleSave() {
     if (!name.trim()) {
-      Alert.alert('Name this ingredient', 'Give it a name before saving.');
+      Alert.alert(isNewRecipe ? 'Name this product' : 'Name this ingredient', 'Give it a name before saving.');
       return;
     }
     if (!kcal.trim()) {
@@ -123,16 +129,25 @@ export default function AddCustomIngredientScreen() {
       source: scannedFromPhoto ? 'ocr' : 'custom',
     });
     invalidateFoodIndex();
-    onCreated(item);
-    navigation.goBack();
+
+    if (params.purpose === 'recipe') {
+      // No recipe exists yet to hand this back to — start one, with this
+      // product as its sole ingredient (the same fallback path INDB dishes
+      // without a real ingredient breakdown already use).
+      navigation.replace('AddRecipeIngredients', { mode: 'quickfill', dishFoodItemId: item.id, dishName: item.name });
+    } else {
+      params.onCreated(item);
+      navigation.goBack();
+    }
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
-          Not in the database? Add it yourself — from a packaging label, or your best estimate. You can always
-          edit it later.
+          {isNewRecipe
+            ? "Scan a packaged food's nutrition label to add it as a recipe — one ingredient, straight from the label."
+            : 'Not in the database? Add it yourself — from a packaging label, or your best estimate. You can always edit it later.'}
         </Text>
 
         {ocrSupported && (
@@ -155,11 +170,11 @@ export default function AddCustomIngredientScreen() {
           </View>
         )}
 
-        <Text style={styles.label}>Ingredient name</Text>
+        <Text style={styles.label}>{nameLabel}</Text>
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="e.g. Homemade ghee"
+          placeholder={namePlaceholder}
           placeholderTextColor={colors.textFaint}
           style={styles.nameInput}
           autoFocus={!initialName}
@@ -198,7 +213,7 @@ export default function AddCustomIngredientScreen() {
 
       <View style={styles.footer}>
         <Pressable style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Add Ingredient</Text>
+          <Text style={styles.saveBtnText}>{saveLabel}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

@@ -18,7 +18,12 @@ export type RecipesStackParamList = {
     | { mode: 'scratch' }
     | { mode: 'edit'; recipeId: string }
     | undefined;
-  AddCustomIngredient: { initialName?: string; onCreated: (item: FoodItem) => void };
+  AddCustomIngredient:
+    // Adds the new food_item to a recipe already being built (existing behavior).
+    | { purpose: 'ingredient'; initialName?: string; onCreated: (item: FoodItem) => void }
+    // Scanning a whole packaged product straight into a brand-new recipe —
+    // no recipe in progress yet, nothing to hand the item back to.
+    | { purpose: 'recipe' };
 };
 
 const Stack = createNativeStackNavigator<RecipesStackParamList>();
@@ -61,7 +66,10 @@ export default function RecipesStack() {
       <Stack.Screen
         name="AddCustomIngredient"
         component={AddCustomIngredientScreen}
-        options={{ title: 'New Ingredient', presentation: 'modal' }}
+        options={({ route }) => ({
+          title: route.params.purpose === 'recipe' ? 'Scan a Product' : 'New Ingredient',
+          presentation: 'modal',
+        })}
       />
     </Stack.Navigator>
   );
