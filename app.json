@@ -25,7 +25,14 @@
     "plugins": [
       "expo-sqlite",
       "expo-font",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-mlkit-ocr",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Meal Prep uses the camera to scan nutrition labels so you can add packaged foods without typing in their macros by hand."
+        }
+      ]
     ]
   }
 }
