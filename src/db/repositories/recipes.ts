@@ -121,6 +121,40 @@ export function createRecipe(input: {
   return db.getFirstSync<Recipe>('SELECT * FROM recipes WHERE id = ?', [id])!;
 }
 
+export function updateRecipe(
+  id: string,
+  input: { name: string; mealType: MealType; ingredients: RecipeIngredientInput[] }
+): void {
+  if (input.ingredients.length === 0) {
+    throw new Error('A recipe needs at least one ingredient to compute macros.');
+  }
+  const now = new Date().toISOString();
+
+  db.withTransactionSync(() => {
+    db.runSync('UPDATE recipes SET name = ?, meal_type = ?, updated_at = ? WHERE id = ?', [
+      input.name,
+      input.mealType,
+      now,
+      id,
+    ]);
+    db.runSync('DELETE FROM recipe_ingredients WHERE recipe_id = ?', [id]);
+    const insertIngredient = db.prepareSync(
+      'INSERT INTO recipe_ingredients (id, recipe_id, food_item_id, quantity_g, sort_order) VALUES (?, ?, ?, ?, ?)'
+    );
+    try {
+      input.ingredients.forEach((ing, index) => {
+        insertIngredient.executeSync([generateId('ri'), id, ing.foodItemId, ing.quantityG, index]);
+      });
+    } finally {
+      insertIngredient.finalizeSync();
+    }
+  });
+}
+
+export function deleteRecipe(id: string): void {
+  db.runSync('DELETE FROM recipes WHERE id = ?', [id]);
+}
+
 export function setFavorite(id: string, favorite: boolean) {
   db.runSync('UPDATE recipes SET favorite = ?, updated_at = ? WHERE id = ?', [
     favorite ? 1 : 0,

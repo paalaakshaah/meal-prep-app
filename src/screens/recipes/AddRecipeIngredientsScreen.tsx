@@ -8,7 +8,7 @@ import { colors, fonts, type } from '../../theme';
 import { fuzzySearchFoodItems } from '../../db/search';
 import { getFoodItem } from '../../db/repositories/foodItems';
 import { getIndbIngredientBreakdown } from '../../db/repositories/indbIngredients';
-import { createRecipe } from '../../db/repositories/recipes';
+import { createRecipe, deleteRecipe, getRecipe, getRecipeIngredients, updateRecipe } from '../../db/repositories/recipes';
 import { getDefaultHouseholdId } from '../../db/repositories/households';
 import type { FoodSource, Macros, MealType } from '../../db/types';
 import type { RecipesStackParamList } from '../../navigation/RecipesStack';
@@ -66,60 +66,85 @@ export default function AddRecipeIngredientsScreen() {
     useRoute<NativeStackScreenProps<RecipesStackParamList, 'AddRecipeIngredients'>['route']>();
   const params = route.params;
 
-  const initialIngredients = useMemo((): LocalIngredient[] => {
-    if (params?.mode !== 'quickfill') return [];
-
-    const item = getFoodItem(params.dishFoodItemId);
-    if (!item) return [];
-
-    // Prefer the real ingredient-by-ingredient breakdown (sourced from the
-    // underlying research repo) over the whole-dish aggregate.
-    const breakdown = item.external_code ? getIndbIngredientBreakdown(item.external_code) : null;
-    if (breakdown) {
-      return breakdown.ingredients.map((ing) => {
-        const foodItem = getFoodItem(ing.foodItemId)!;
-        return {
-          key: ing.foodItemId,
-          foodItemId: ing.foodItemId,
-          name: ing.name,
-          quantityG: ing.quantityG,
+  const initial = useMemo((): { name: string; mealType: MealType; ingredients: LocalIngredient[] } => {
+    if (params?.mode === 'edit') {
+      const recipe = getRecipe(params.recipeId);
+      const details = getRecipeIngredients(params.recipeId);
+      return {
+        name: recipe?.name ?? '',
+        mealType: recipe?.meal_type ?? 'dinner',
+        ingredients: details.map((d) => ({
+          key: d.id,
+          foodItemId: d.foodItemId,
+          name: d.foodItem.name,
+          quantityG: d.quantityG,
           per100g: {
-            kcal: foodItem.kcal,
-            protein: foodItem.protein,
-            carbs: foodItem.carbs,
-            fat: foodItem.fat,
-            fiber: foodItem.fiber,
-            sugar: foodItem.sugar,
+            kcal: d.foodItem.kcal,
+            protein: d.foodItem.protein,
+            carbs: d.foodItem.carbs,
+            fat: d.foodItem.fat,
+            fiber: d.foodItem.fiber,
+            sugar: d.foodItem.sugar,
           },
-          source: foodItem.source,
-        };
-      });
+          source: d.foodItem.source,
+        })),
+      };
     }
 
-    // Fall back to a single whole-dish "quick estimate" row when no
-    // ingredient breakdown is available for this dish.
-    return [
-      {
-        key: item.id,
-        foodItemId: item.id,
-        name: item.name,
-        quantityG: item.serving_grams ?? DEFAULT_SERVING_GRAMS,
-        per100g: {
-          kcal: item.kcal,
-          protein: item.protein,
-          carbs: item.carbs,
-          fat: item.fat,
-          fiber: item.fiber,
-          sugar: item.sugar,
-        },
-        source: item.source,
-      },
-    ];
+    if (params?.mode === 'quickfill') {
+      const item = getFoodItem(params.dishFoodItemId);
+      if (item) {
+        // Prefer the real ingredient-by-ingredient breakdown (sourced from
+        // the underlying research repo) over the whole-dish aggregate.
+        const breakdown = item.external_code ? getIndbIngredientBreakdown(item.external_code) : null;
+        const ingredients: LocalIngredient[] = breakdown
+          ? breakdown.ingredients.map((ing) => {
+              const foodItem = getFoodItem(ing.foodItemId)!;
+              return {
+                key: ing.foodItemId,
+                foodItemId: ing.foodItemId,
+                name: ing.name,
+                quantityG: ing.quantityG,
+                per100g: {
+                  kcal: foodItem.kcal,
+                  protein: foodItem.protein,
+                  carbs: foodItem.carbs,
+                  fat: foodItem.fat,
+                  fiber: foodItem.fiber,
+                  sugar: foodItem.sugar,
+                },
+                source: foodItem.source,
+              };
+            })
+          : // Fall back to a single whole-dish "quick estimate" row when no
+            // ingredient breakdown is available for this dish.
+            [
+              {
+                key: item.id,
+                foodItemId: item.id,
+                name: item.name,
+                quantityG: item.serving_grams ?? DEFAULT_SERVING_GRAMS,
+                per100g: {
+                  kcal: item.kcal,
+                  protein: item.protein,
+                  carbs: item.carbs,
+                  fat: item.fat,
+                  fiber: item.fiber,
+                  sugar: item.sugar,
+                },
+                source: item.source,
+              },
+            ];
+        return { name: params.dishName, mealType: 'dinner', ingredients };
+      }
+    }
+
+    return { name: '', mealType: 'dinner', ingredients: [] };
   }, [params]);
 
-  const [name, setName] = useState(params?.mode === 'quickfill' ? params.dishName : '');
-  const [mealType, setMealType] = useState<MealType>('dinner');
-  const [ingredients, setIngredients] = useState<LocalIngredient[]>(initialIngredients);
+  const [name, setName] = useState(initial.name);
+  const [mealType, setMealType] = useState<MealType>(initial.mealType);
+  const [ingredients, setIngredients] = useState<LocalIngredient[]>(initial.ingredients);
   const [ingredientQuery, setIngredientQuery] = useState('');
 
   const searchResults = useMemo(
@@ -172,13 +197,37 @@ export default function AddRecipeIngredientsScreen() {
       Alert.alert('Add an ingredient', 'A recipe needs at least one ingredient to compute macros.');
       return;
     }
+    const ingredientInput = ingredients.map((i) => ({ foodItemId: i.foodItemId, quantityG: i.quantityG }));
+
+    if (params?.mode === 'edit') {
+      updateRecipe(params.recipeId, { name: name.trim(), mealType, ingredients: ingredientInput });
+      navigation.goBack();
+      return;
+    }
+
     createRecipe({
       householdId: getDefaultHouseholdId(),
       name: name.trim(),
       mealType,
-      ingredients: ingredients.map((i) => ({ foodItemId: i.foodItemId, quantityG: i.quantityG })),
+      ingredients: ingredientInput,
     });
     navigation.popToTop();
+  }
+
+  function handleDelete() {
+    if (params?.mode !== 'edit') return;
+    const recipeId = params.recipeId;
+    Alert.alert('Delete this recipe?', `"${name}" will be removed. This can't be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteRecipe(recipeId);
+          navigation.goBack();
+        },
+      },
+    ]);
   }
 
   return (
@@ -286,8 +335,14 @@ export default function AddRecipeIngredientsScreen() {
           <Text style={[type.body, { color: colors.textFaint, marginBottom: 12 }]}>Add ingredients to see macros</Text>
         )}
         <Pressable style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Save Recipe</Text>
+          <Text style={styles.saveBtnText}>{params?.mode === 'edit' ? 'Save Changes' : 'Save Recipe'}</Text>
         </Pressable>
+        {params?.mode === 'edit' && (
+          <Pressable style={styles.deleteBtn} onPress={handleDelete} hitSlop={6}>
+            <Ionicons name="trash-outline" size={15} color={colors.rustDark} />
+            <Text style={styles.deleteBtnText}>Delete Recipe</Text>
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -413,4 +468,13 @@ const styles = StyleSheet.create({
   macroLabel: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.textFaint, marginTop: 2 },
   saveBtn: { backgroundColor: colors.accent, borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
   saveBtnText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff' },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 14,
+    paddingVertical: 6,
+  },
+  deleteBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.rustDark },
 });

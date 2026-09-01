@@ -14,6 +14,7 @@ export type RecipesStackParamList = {
   AddRecipeIngredients:
     | { mode: 'quickfill'; dishFoodItemId: string; dishName: string }
     | { mode: 'scratch' }
+    | { mode: 'edit'; recipeId: string }
     | undefined;
 };
 
@@ -50,7 +51,9 @@ export default function RecipesStack() {
       <Stack.Screen
         name="AddRecipeIngredients"
         component={AddRecipeIngredientsScreen}
-        options={{ title: 'Ingredients' }}
+        options={({ route }) => ({
+          title: route.params?.mode === 'edit' ? 'Edit Recipe' : 'Ingredients',
+        })}
       />
     </Stack.Navigator>
   );

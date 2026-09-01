@@ -80,7 +80,10 @@ export default function RecipesListScreen() {
           keyExtractor={(r) => r.id}
           contentContainerStyle={{ padding: 20, gap: 12 }}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <Pressable
+              style={styles.card}
+              onPress={() => navigation.navigate('AddRecipeIngredients', { mode: 'edit', recipeId: item.id })}
+            >
               <View style={styles.thumb}>
                 <Ionicons name="restaurant-outline" size={26} color={colors.accentDark} />
               </View>
@@ -114,7 +117,7 @@ export default function RecipesListScreen() {
                   <Text style={styles.subtitle}>No ingredients yet</Text>
                 )}
               </View>
-            </View>
+            </Pressable>
           )}
         />
       )}
