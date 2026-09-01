@@ -11,27 +11,28 @@ import type {
 import { getFoodItem } from './foodItems';
 
 type MacrosRow = {
-  kcal_per_serving: number;
-  protein_per_serving: number;
-  carbs_per_serving: number;
-  fat_per_serving: number;
-  fiber_per_serving: number;
-  sugar_per_serving: number;
+  total_weight_g: number;
+  kcal_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fat_per_100g: number;
+  fiber_per_100g: number;
+  sugar_per_100g: number;
 };
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-function toPerServing(row: MacrosRow | null): Macros | null {
+function toPer100g(row: MacrosRow | null): Macros | null {
   if (!row) return null;
   return {
-    kcal: round1(row.kcal_per_serving),
-    protein: round1(row.protein_per_serving),
-    carbs: round1(row.carbs_per_serving),
-    fat: round1(row.fat_per_serving),
-    fiber: round1(row.fiber_per_serving),
-    sugar: round1(row.sugar_per_serving),
+    kcal: round1(row.kcal_per_100g),
+    protein: round1(row.protein_per_100g),
+    carbs: round1(row.carbs_per_100g),
+    fat: round1(row.fat_per_100g),
+    fiber: round1(row.fiber_per_100g),
+    sugar: round1(row.sugar_per_100g),
   };
 }
 
@@ -46,6 +47,16 @@ function checkIsQuickEstimate(recipeId: string): boolean {
   return row?.cnt === 1 && row.sole_source === 'indb';
 }
 
+function withMacros(recipe: Recipe): RecipeWithMacros {
+  const macros = db.getFirstSync<MacrosRow>('SELECT * FROM recipe_macros WHERE recipe_id = ?', [recipe.id]);
+  return {
+    ...recipe,
+    per100g: toPer100g(macros),
+    totalWeightG: macros ? round1(macros.total_weight_g) : null,
+    isQuickEstimate: checkIsQuickEstimate(recipe.id),
+  };
+}
+
 export function listRecipes(householdId: string, mealType?: MealType): RecipeWithMacros[] {
   const recipes = mealType
     ? db.getAllSync<Recipe>(
@@ -56,17 +67,12 @@ export function listRecipes(householdId: string, mealType?: MealType): RecipeWit
         householdId,
       ]);
 
-  return recipes.map((recipe) => {
-    const macros = db.getFirstSync<MacrosRow>('SELECT * FROM recipe_macros WHERE recipe_id = ?', [recipe.id]);
-    return { ...recipe, perServing: toPerServing(macros), isQuickEstimate: checkIsQuickEstimate(recipe.id) };
-  });
+  return recipes.map(withMacros);
 }
 
 export function getRecipe(id: string): RecipeWithMacros | null {
   const recipe = db.getFirstSync<Recipe>('SELECT * FROM recipes WHERE id = ?', [id]);
-  if (!recipe) return null;
-  const macros = db.getFirstSync<MacrosRow>('SELECT * FROM recipe_macros WHERE recipe_id = ?', [id]);
-  return { ...recipe, perServing: toPerServing(macros), isQuickEstimate: checkIsQuickEstimate(id) };
+  return recipe ? withMacros(recipe) : null;
 }
 
 export function getRecipeIngredients(recipeId: string): RecipeIngredientDetail[] {
@@ -86,7 +92,6 @@ export function createRecipe(input: {
   householdId: string;
   name: string;
   mealType: MealType;
-  servings: number;
   ingredients: RecipeIngredientInput[];
 }): Recipe {
   if (input.ingredients.length === 0) {
@@ -97,9 +102,9 @@ export function createRecipe(input: {
 
   db.withTransactionSync(() => {
     db.runSync(
-      `INSERT INTO recipes (id, household_id, name, meal_type, servings, favorite, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
-      [id, input.householdId, input.name, input.mealType, input.servings, now, now]
+      `INSERT INTO recipes (id, household_id, name, meal_type, favorite, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 0, ?, ?)`,
+      [id, input.householdId, input.name, input.mealType, now, now]
     );
     const insertIngredient = db.prepareSync(
       'INSERT INTO recipe_ingredients (id, recipe_id, food_item_id, quantity_g, sort_order) VALUES (?, ?, ?, ?, ?)'

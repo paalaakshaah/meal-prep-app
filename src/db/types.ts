@@ -32,14 +32,14 @@ export type Recipe = {
   household_id: string;
   name: string;
   meal_type: MealType;
-  servings: number;
   favorite: 0 | 1;
   created_at: string;
   updated_at: string;
 };
 
 export type RecipeWithMacros = Recipe & {
-  perServing: Macros | null; // null if the recipe somehow has no ingredients yet
+  per100g: Macros | null; // null if the recipe somehow has no ingredients yet
+  totalWeightG: number | null;
   // true when this recipe is just a single INDB dish copied wholesale (no real
   // ingredient breakdown) rather than something built up from raw ingredients.
   isQuickEstimate: boolean;

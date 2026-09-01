@@ -89,8 +89,8 @@ export default function RecipesListScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[type.title, { color: colors.text }]}>{item.name}</Text>
                     <Text style={styles.subtitle}>
-                      {item.meal_type[0].toUpperCase() + item.meal_type.slice(1)} · {item.servings} serving
-                      {item.servings === 1 ? '' : 's'}
+                      {item.meal_type[0].toUpperCase() + item.meal_type.slice(1)}
+                      {item.totalWeightG ? ` · Makes ~${Math.round(item.totalWeightG)}g` : ''}
                       {item.isQuickEstimate ? ' · Quick estimate' : ''}
                     </Text>
                   </View>
@@ -108,8 +108,8 @@ export default function RecipesListScreen() {
                     />
                   </Pressable>
                 </View>
-                {item.perServing ? (
-                  <MacroPills macros={item.perServing} />
+                {item.per100g ? (
+                  <MacroPills macros={item.per100g} suffix="/100g" />
                 ) : (
                   <Text style={styles.subtitle}>No ingredients yet</Text>
                 )}

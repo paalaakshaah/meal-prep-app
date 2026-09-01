@@ -2,11 +2,13 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme';
 import type { Macros } from '../db/types';
 
-export default function MacroPills({ macros }: { macros: Macros }) {
+export default function MacroPills({ macros, suffix }: { macros: Macros; suffix?: string }) {
   return (
     <View style={styles.row}>
       <View style={styles.kcalPill}>
-        <Text style={styles.kcalText}>{Math.round(macros.kcal)} kcal</Text>
+        <Text style={styles.kcalText}>
+          {Math.round(macros.kcal)} kcal{suffix ? ` ${suffix}` : ''}
+        </Text>
       </View>
       <Text style={styles.detail}>
         {Math.round(macros.protein)}g P · {Math.round(macros.carbs)}g C · {Math.round(macros.fat)}g F

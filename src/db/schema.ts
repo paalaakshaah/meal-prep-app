@@ -48,12 +48,15 @@ CREATE TABLE IF NOT EXISTS food_items (
 CREATE INDEX IF NOT EXISTS idx_food_items_name ON food_items(name);
 CREATE INDEX IF NOT EXISTS idx_food_items_source ON food_items(source);
 
+-- No "servings" here on purpose: a recipe defines a dish's composition and
+-- macros (normalized per 100g, like any food_item), not how much of it
+-- you're making this week — that's a planning-time decision, not an
+-- authoring-time one. See meal_plan_entries.quantity_g.
 CREATE TABLE IF NOT EXISTS recipes (
   id TEXT PRIMARY KEY,
   household_id TEXT NOT NULL REFERENCES households(id),
   name TEXT NOT NULL,
   meal_type TEXT NOT NULL CHECK (meal_type IN ('breakfast', 'lunch', 'dinner', 'snack')),
-  servings REAL NOT NULL DEFAULT 1,
   favorite INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -69,29 +72,34 @@ CREATE TABLE IF NOT EXISTS recipe_ingredients (
 );
 CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe ON recipe_ingredients(recipe_id);
 
--- Computed macros (total and per-serving) for every recipe, derived from its
--- ingredients — never stored redundantly, so it can't drift out of sync.
+-- Computed macros (total, and per-100g like any food_item) for every recipe,
+-- derived from its ingredients — never stored redundantly, so it can't drift
+-- out of sync. Per-100g generalizes to any batch size without needing a
+-- "servings" concept on the recipe itself.
 CREATE VIEW IF NOT EXISTS recipe_macros AS
 SELECT
   r.id AS recipe_id,
-  r.servings,
+  SUM(ri.quantity_g) AS total_weight_g,
   SUM(ri.quantity_g / 100.0 * fi.kcal)    AS total_kcal,
   SUM(ri.quantity_g / 100.0 * fi.protein) AS total_protein,
   SUM(ri.quantity_g / 100.0 * fi.carbs)   AS total_carbs,
   SUM(ri.quantity_g / 100.0 * fi.fat)     AS total_fat,
   SUM(ri.quantity_g / 100.0 * fi.fiber)   AS total_fiber,
   SUM(ri.quantity_g / 100.0 * fi.sugar)   AS total_sugar,
-  SUM(ri.quantity_g / 100.0 * fi.kcal)    / r.servings AS kcal_per_serving,
-  SUM(ri.quantity_g / 100.0 * fi.protein) / r.servings AS protein_per_serving,
-  SUM(ri.quantity_g / 100.0 * fi.carbs)   / r.servings AS carbs_per_serving,
-  SUM(ri.quantity_g / 100.0 * fi.fat)     / r.servings AS fat_per_serving,
-  SUM(ri.quantity_g / 100.0 * fi.fiber)   / r.servings AS fiber_per_serving,
-  SUM(ri.quantity_g / 100.0 * fi.sugar)   / r.servings AS sugar_per_serving
+  SUM(ri.quantity_g / 100.0 * fi.kcal)    / (SUM(ri.quantity_g) / 100.0) AS kcal_per_100g,
+  SUM(ri.quantity_g / 100.0 * fi.protein) / (SUM(ri.quantity_g) / 100.0) AS protein_per_100g,
+  SUM(ri.quantity_g / 100.0 * fi.carbs)   / (SUM(ri.quantity_g) / 100.0) AS carbs_per_100g,
+  SUM(ri.quantity_g / 100.0 * fi.fat)     / (SUM(ri.quantity_g) / 100.0) AS fat_per_100g,
+  SUM(ri.quantity_g / 100.0 * fi.fiber)   / (SUM(ri.quantity_g) / 100.0) AS fiber_per_100g,
+  SUM(ri.quantity_g / 100.0 * fi.sugar)   / (SUM(ri.quantity_g) / 100.0) AS sugar_per_100g
 FROM recipes r
 JOIN recipe_ingredients ri ON ri.recipe_id = r.id
 JOIN food_items fi ON fi.id = ri.food_item_id
 GROUP BY r.id;
 
+-- quantity_g (not an abstract "portion" multiplier) since recipes no longer
+-- carry a servings concept — planning is where "how much am I eating/making"
+-- actually gets decided, in the same per-100g terms as everything else.
 CREATE TABLE IF NOT EXISTS meal_plan_entries (
   id TEXT PRIMARY KEY,
   profile_id TEXT NOT NULL REFERENCES profiles(id),
@@ -99,7 +107,7 @@ CREATE TABLE IF NOT EXISTS meal_plan_entries (
   date TEXT NOT NULL,
   slot TEXT NOT NULL CHECK (slot IN ('breakfast', 'lunch', 'dinner', 'snack')),
   recipe_id TEXT REFERENCES recipes(id),
-  portion REAL NOT NULL DEFAULT 1,
+  quantity_g REAL NOT NULL,
   locked INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_plan_profile_date ON meal_plan_entries(profile_id, date);
@@ -135,7 +143,7 @@ CREATE INDEX IF NOT EXISTS idx_logs_profile_date ON logs(profile_id, date);
 // CREATE TABLE IF NOT EXISTS is a no-op against an already-existing table, so
 // changing SCHEMA_SQL alone has no effect on-device without this — see
 // migrateIfNeeded below, which drops and recreates everything on a mismatch.
-export const SCHEMA_VERSION = '2';
+export const SCHEMA_VERSION = '3';
 
 const ALL_TABLES = [
   'recipe_ingredients',

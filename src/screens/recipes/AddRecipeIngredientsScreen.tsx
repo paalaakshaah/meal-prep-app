@@ -25,8 +25,12 @@ type LocalIngredient = {
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const DEFAULT_SERVING_GRAMS = 150;
 
-function computePerServing(ingredients: LocalIngredient[], servings: number): Macros | null {
-  if (ingredients.length === 0 || servings <= 0) return null;
+// Per 100g, same convention as every food_item — a recipe's macros shouldn't
+// depend on a "servings" count decided at authoring time. How much of this
+// you're actually making/eating is a planning-time question (see the design
+// doc on meal_plan_entries.quantity_g), not a recipe one.
+function computePer100g(ingredients: LocalIngredient[]): { macros: Macros; totalWeightG: number } | null {
+  if (ingredients.length === 0) return null;
   const total = ingredients.reduce(
     (acc, ing) => {
       const factor = ing.quantityG / 100;
@@ -36,17 +40,23 @@ function computePerServing(ingredients: LocalIngredient[], servings: number): Ma
       acc.fat += ing.per100g.fat * factor;
       acc.fiber += ing.per100g.fiber * factor;
       acc.sugar += ing.per100g.sugar * factor;
+      acc.weight += ing.quantityG;
       return acc;
     },
-    { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
+    { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, weight: 0 }
   );
+  if (total.weight <= 0) return null;
+  const scale = 100 / total.weight;
   return {
-    kcal: total.kcal / servings,
-    protein: total.protein / servings,
-    carbs: total.carbs / servings,
-    fat: total.fat / servings,
-    fiber: total.fiber / servings,
-    sugar: total.sugar / servings,
+    totalWeightG: total.weight,
+    macros: {
+      kcal: total.kcal * scale,
+      protein: total.protein * scale,
+      carbs: total.carbs * scale,
+      fat: total.fat * scale,
+      fiber: total.fiber * scale,
+      sugar: total.sugar * scale,
+    },
   };
 }
 
@@ -56,67 +66,60 @@ export default function AddRecipeIngredientsScreen() {
     useRoute<NativeStackScreenProps<RecipesStackParamList, 'AddRecipeIngredients'>['route']>();
   const params = route.params;
 
-  const initial = useMemo((): { ingredients: LocalIngredient[]; servings: number } => {
-    if (params?.mode !== 'quickfill') return { ingredients: [], servings: 4 };
+  const initialIngredients = useMemo((): LocalIngredient[] => {
+    if (params?.mode !== 'quickfill') return [];
 
     const item = getFoodItem(params.dishFoodItemId);
-    if (!item) return { ingredients: [], servings: 1 };
+    if (!item) return [];
 
     // Prefer the real ingredient-by-ingredient breakdown (sourced from the
     // underlying research repo) over the whole-dish aggregate.
     const breakdown = item.external_code ? getIndbIngredientBreakdown(item.external_code) : null;
     if (breakdown) {
-      return {
-        servings: breakdown.servings,
-        ingredients: breakdown.ingredients.map((ing) => {
-          const foodItem = getFoodItem(ing.foodItemId)!;
-          return {
-            key: ing.foodItemId,
-            foodItemId: ing.foodItemId,
-            name: ing.name,
-            quantityG: ing.quantityG,
-            per100g: {
-              kcal: foodItem.kcal,
-              protein: foodItem.protein,
-              carbs: foodItem.carbs,
-              fat: foodItem.fat,
-              fiber: foodItem.fiber,
-              sugar: foodItem.sugar,
-            },
-            source: foodItem.source,
-          };
-        }),
-      };
+      return breakdown.ingredients.map((ing) => {
+        const foodItem = getFoodItem(ing.foodItemId)!;
+        return {
+          key: ing.foodItemId,
+          foodItemId: ing.foodItemId,
+          name: ing.name,
+          quantityG: ing.quantityG,
+          per100g: {
+            kcal: foodItem.kcal,
+            protein: foodItem.protein,
+            carbs: foodItem.carbs,
+            fat: foodItem.fat,
+            fiber: foodItem.fiber,
+            sugar: foodItem.sugar,
+          },
+          source: foodItem.source,
+        };
+      });
     }
 
     // Fall back to a single whole-dish "quick estimate" row when no
     // ingredient breakdown is available for this dish.
-    return {
-      servings: 1,
-      ingredients: [
-        {
-          key: item.id,
-          foodItemId: item.id,
-          name: item.name,
-          quantityG: item.serving_grams ?? DEFAULT_SERVING_GRAMS,
-          per100g: {
-            kcal: item.kcal,
-            protein: item.protein,
-            carbs: item.carbs,
-            fat: item.fat,
-            fiber: item.fiber,
-            sugar: item.sugar,
-          },
-          source: item.source,
+    return [
+      {
+        key: item.id,
+        foodItemId: item.id,
+        name: item.name,
+        quantityG: item.serving_grams ?? DEFAULT_SERVING_GRAMS,
+        per100g: {
+          kcal: item.kcal,
+          protein: item.protein,
+          carbs: item.carbs,
+          fat: item.fat,
+          fiber: item.fiber,
+          sugar: item.sugar,
         },
-      ],
-    };
+        source: item.source,
+      },
+    ];
   }, [params]);
 
   const [name, setName] = useState(params?.mode === 'quickfill' ? params.dishName : '');
   const [mealType, setMealType] = useState<MealType>('dinner');
-  const [servings, setServings] = useState(initial.servings);
-  const [ingredients, setIngredients] = useState<LocalIngredient[]>(initial.ingredients);
+  const [ingredients, setIngredients] = useState<LocalIngredient[]>(initialIngredients);
   const [ingredientQuery, setIngredientQuery] = useState('');
 
   const searchResults = useMemo(
@@ -124,7 +127,7 @@ export default function AddRecipeIngredientsScreen() {
     [ingredientQuery]
   );
 
-  const perServing = computePerServing(ingredients, servings);
+  const computed = computePer100g(ingredients);
   const isQuickEstimate = ingredients.length === 1 && ingredients[0].source === 'indb';
 
   function addIngredient(foodItemId: string) {
@@ -173,7 +176,6 @@ export default function AddRecipeIngredientsScreen() {
       householdId: getDefaultHouseholdId(),
       name: name.trim(),
       mealType,
-      servings,
       ingredients: ingredients.map((i) => ({ foodItemId: i.foodItemId, quantityG: i.quantityG })),
     });
     navigation.popToTop();
@@ -209,21 +211,10 @@ export default function AddRecipeIngredientsScreen() {
           })}
         </View>
 
-        <Text style={styles.label}>Servings</Text>
-        <View style={styles.stepperRow}>
-          <Pressable
-            style={styles.stepperBtn}
-            onPress={() => setServings((s) => Math.max(1, s - 1))}
-          >
-            <Ionicons name="remove" size={18} color={colors.accentDark} />
-          </Pressable>
-          <Text style={styles.stepperValue}>{servings}</Text>
-          <Pressable style={styles.stepperBtn} onPress={() => setServings((s) => s + 1)}>
-            <Ionicons name="add" size={18} color={colors.accentDark} />
-          </Pressable>
+        <View style={styles.ingredientsHeader}>
+          <Text style={[styles.label, { marginTop: 0, marginBottom: 0 }]}>Ingredients</Text>
+          {computed && <Text style={styles.totalWeight}>Makes ~{Math.round(computed.totalWeightG)}g total</Text>}
         </View>
-
-        <Text style={styles.label}>Ingredients</Text>
         {isQuickEstimate && (
           <View style={styles.notice}>
             <Ionicons name="information-circle-outline" size={18} color={colors.accentDark} />
@@ -283,13 +274,13 @@ export default function AddRecipeIngredientsScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Text style={styles.footerLabel}>Per serving</Text>
-        {perServing ? (
+        <Text style={styles.footerLabel}>Per 100g</Text>
+        {computed ? (
           <View style={styles.macroGrid}>
-            <MacroStat label="kcal" value={Math.round(perServing.kcal)} bg={colors.accentSoft} fg={colors.accentDark} />
-            <MacroStat label="protein" value={`${Math.round(perServing.protein)}g`} bg={colors.rustSoft} fg={colors.rustDark} />
-            <MacroStat label="carbs" value={`${Math.round(perServing.carbs)}g`} bg={colors.goldSoft} fg={colors.goldDark} />
-            <MacroStat label="fat" value={`${Math.round(perServing.fat)}g`} bg={colors.tealSoft} fg={colors.tealDark} />
+            <MacroStat label="kcal" value={Math.round(computed.macros.kcal)} bg={colors.accentSoft} fg={colors.accentDark} />
+            <MacroStat label="protein" value={`${Math.round(computed.macros.protein)}g`} bg={colors.rustSoft} fg={colors.rustDark} />
+            <MacroStat label="carbs" value={`${Math.round(computed.macros.carbs)}g`} bg={colors.goldSoft} fg={colors.goldDark} />
+            <MacroStat label="fat" value={`${Math.round(computed.macros.fat)}g`} bg={colors.tealSoft} fg={colors.tealDark} />
           </View>
         ) : (
           <Text style={[type.body, { color: colors.textFaint, marginBottom: 12 }]}>Add ingredients to see macros</Text>
@@ -334,6 +325,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
+  ingredientsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  totalWeight: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.textFaint },
   notice: {
     flexDirection: 'row',
     gap: 10,
@@ -350,16 +349,6 @@ const styles = StyleSheet.create({
   pillInactive: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   pillTextActive: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
   pillTextInactive: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.textSoft },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  stepperBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperValue: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, minWidth: 20, textAlign: 'center' },
   ingredientRow: {
     flexDirection: 'row',
     alignItems: 'center',
