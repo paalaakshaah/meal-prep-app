@@ -6,6 +6,8 @@ import { colors, fonts } from '../theme';
 import RecipesListScreen from '../screens/recipes/RecipesListScreen';
 import AddRecipeSearchScreen from '../screens/recipes/AddRecipeSearchScreen';
 import AddRecipeIngredientsScreen from '../screens/recipes/AddRecipeIngredientsScreen';
+import AddCustomIngredientScreen from '../screens/recipes/AddCustomIngredientScreen';
+import type { FoodItem } from '../db/types';
 import type { RootStackParamList } from './types';
 
 export type RecipesStackParamList = {
@@ -16,6 +18,7 @@ export type RecipesStackParamList = {
     | { mode: 'scratch' }
     | { mode: 'edit'; recipeId: string }
     | undefined;
+  AddCustomIngredient: { initialName?: string; onCreated: (item: FoodItem) => void };
 };
 
 const Stack = createNativeStackNavigator<RecipesStackParamList>();
@@ -54,6 +57,11 @@ export default function RecipesStack() {
         options={({ route }) => ({
           title: route.params?.mode === 'edit' ? 'Edit Recipe' : 'Ingredients',
         })}
+      />
+      <Stack.Screen
+        name="AddCustomIngredient"
+        component={AddCustomIngredientScreen}
+        options={{ title: 'New Ingredient', presentation: 'modal' }}
       />
     </Stack.Navigator>
   );

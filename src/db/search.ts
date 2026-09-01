@@ -14,6 +14,12 @@ function getIndex(): Fuse<IndexEntry> {
   return fuse;
 }
 
+// Call after adding a food_item outside this module (e.g. a custom
+// ingredient) so it's searchable immediately, without needing an app restart.
+export function invalidateFoodIndex() {
+  fuse = null;
+}
+
 export type SearchResult = { id: string; name: string; source: FoodSource };
 
 // General search across every food_item (raw ingredients, dishes, custom items) —

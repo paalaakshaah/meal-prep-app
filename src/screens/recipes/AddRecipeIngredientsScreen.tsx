@@ -320,6 +320,18 @@ export default function AddRecipeIngredientsScreen() {
             ))}
           </View>
         )}
+        <Pressable
+          style={styles.addNewLink}
+          onPress={() =>
+            navigation.navigate('AddCustomIngredient', {
+              initialName: ingredientQuery.trim() || undefined,
+              onCreated: (item) => addIngredient(item.id),
+            })
+          }
+        >
+          <Ionicons name="add-circle-outline" size={15} color={colors.accentDark} />
+          <Text style={styles.addNewLinkText}>Can't find it? Add a new ingredient</Text>
+        </Pressable>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -448,6 +460,8 @@ const styles = StyleSheet.create({
   },
   resultRow: { paddingHorizontal: 14, paddingVertical: 12 },
   resultRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  addNewLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, paddingVertical: 4 },
+  addNewLinkText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.accentDark },
   footer: {
     padding: 20,
     borderTopWidth: 1,
