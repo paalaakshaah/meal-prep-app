@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,16 +26,54 @@ import { listFavoriteRecipes } from '../../db/repositories/recipes';
 import type { Macros, RecipeWithMacros } from '../../db/types';
 import type { RootStackParamList } from '../../navigation/types';
 
-const DEFAULT_STATS: ProfileStats = {
-  weightKg: 70,
-  heightCm: 165,
-  age: 30,
-  sex: 'female',
-  activityLevel: 'moderate',
-  pace: 'standard',
+type DraftStats = {
+  weightKg: string;
+  heightCm: string;
+  age: string;
+  sex: Sex | null;
+  activityLevel: ActivityLevel | null;
+  pace: Pace | null;
+};
+
+const BLANK_STATS: DraftStats = {
+  weightKg: '',
+  heightCm: '',
+  age: '',
+  sex: null,
+  activityLevel: null,
+  pace: null,
 };
 
 const DEFAULT_TARGETS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 };
+
+function draftFromStats(stats: ProfileStats | undefined): DraftStats {
+  if (!stats) return BLANK_STATS;
+  return {
+    weightKg: String(stats.weightKg),
+    heightCm: String(stats.heightCm),
+    age: String(stats.age),
+    sex: stats.sex,
+    activityLevel: stats.activityLevel,
+    pace: stats.pace,
+  };
+}
+
+// Only a fully-filled-in draft becomes real stats — no field is ever
+// defaulted, since a made-up weight/height/age would look like real data
+// the user forgot to check.
+function statsFromDraft(draft: DraftStats): ProfileStats | null {
+  const weightKg = Number(draft.weightKg);
+  const heightCm = Number(draft.heightCm);
+  const age = Number(draft.age);
+  if (!draft.weightKg.trim() || !draft.heightCm.trim() || !draft.age.trim()) return null;
+  if (!Number.isFinite(weightKg) || !Number.isFinite(heightCm) || !Number.isFinite(age)) return null;
+  if (!draft.sex || !draft.activityLevel || !draft.pace) return null;
+  return { weightKg, heightCm, age, sex: draft.sex, activityLevel: draft.activityLevel, pace: draft.pace };
+}
+
+function sanitizeNumText(text: string): string {
+  return text.replace(/[^0-9.]/g, '');
+}
 
 function numOr(text: string, fallback: number): number {
   const value = Number(text.replace(/[^0-9.]/g, ''));
@@ -54,14 +92,14 @@ export default function ProfileScreen() {
     return {
       householdName: household?.name ?? '',
       profileName: profile?.name ?? '',
-      stats: savedTargets?.stats ?? DEFAULT_STATS,
+      stats: draftFromStats(savedTargets?.stats),
       targets: savedTargets ?? DEFAULT_TARGETS,
     };
   }, [householdId, profileId]);
 
   const [householdName, setHouseholdName] = useState(initial.householdName);
   const [profileName, setProfileName] = useState(initial.profileName);
-  const [stats, setStats] = useState<ProfileStats>(initial.stats);
+  const [stats, setStats] = useState<DraftStats>(initial.stats);
   const [targets, setTargets] = useState<Macros>(initial.targets);
   const [favorites, setFavorites] = useState<RecipeWithMacros[]>([]);
 
@@ -72,12 +110,23 @@ export default function ProfileScreen() {
   );
 
   function recompute() {
-    setTargets((prev) => ({ ...prev, ...calculateTargets(stats) }));
+    const complete = statsFromDraft(stats);
+    if (!complete) {
+      Alert.alert(
+        'Add your stats first',
+        'Fill in weight, height, age, sex, activity level, and pace to calculate targets.'
+      );
+      return;
+    }
+    setTargets((prev) => ({ ...prev, ...calculateTargets(complete) }));
   }
 
   function handleSave() {
     updateHouseholdName(householdId, householdName.trim() || 'Household');
-    updateProfile(profileId, { name: profileName.trim() || 'Me', targets: { ...targets, stats } });
+    updateProfile(profileId, {
+      name: profileName.trim() || 'Me',
+      targets: { ...targets, stats: statsFromDraft(stats) ?? undefined },
+    });
     navigation.goBack();
   }
 
@@ -107,27 +156,33 @@ export default function ProfileScreen() {
           <View style={styles.statField}>
             <Text style={styles.statFieldLabel}>Weight (kg)</Text>
             <TextInput
-              value={String(stats.weightKg)}
-              onChangeText={(t) => setStats((s) => ({ ...s, weightKg: numOr(t, 0) }))}
+              value={stats.weightKg}
+              onChangeText={(t) => setStats((s) => ({ ...s, weightKg: sanitizeNumText(t) }))}
               keyboardType="numeric"
+              placeholder="—"
+              placeholderTextColor={colors.textFaint}
               style={styles.statInput}
             />
           </View>
           <View style={styles.statField}>
             <Text style={styles.statFieldLabel}>Height (cm)</Text>
             <TextInput
-              value={String(stats.heightCm)}
-              onChangeText={(t) => setStats((s) => ({ ...s, heightCm: numOr(t, 0) }))}
+              value={stats.heightCm}
+              onChangeText={(t) => setStats((s) => ({ ...s, heightCm: sanitizeNumText(t) }))}
               keyboardType="numeric"
+              placeholder="—"
+              placeholderTextColor={colors.textFaint}
               style={styles.statInput}
             />
           </View>
           <View style={styles.statField}>
             <Text style={styles.statFieldLabel}>Age</Text>
             <TextInput
-              value={String(stats.age)}
-              onChangeText={(t) => setStats((s) => ({ ...s, age: numOr(t, 0) }))}
+              value={stats.age}
+              onChangeText={(t) => setStats((s) => ({ ...s, age: sanitizeNumText(t) }))}
               keyboardType="numeric"
+              placeholder="—"
+              placeholderTextColor={colors.textFaint}
               style={styles.statInput}
             />
           </View>
