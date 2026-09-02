@@ -1,16 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import type { NavigationProp } from '@react-navigation/native';
+import type { NavigationProp, NavigatorScreenParams } from '@react-navigation/native';
 import { Pressable } from 'react-native';
 import { colors, fonts } from '../theme';
 import HistoryScreen from '../screens/history/HistoryScreen';
 import LogScreen from '../screens/log/LogScreen';
 import PlanScreen from '../screens/plan/PlanScreen';
 import RecipesStack from './RecipesStack';
+import type { RecipesStackParamList } from './RecipesStack';
 import type { RootStackParamList } from './types';
 
 export type MainTabsParamList = {
-  Recipes: undefined;
+  Recipes: NavigatorScreenParams<RecipesStackParamList> | undefined;
   Plan: undefined;
   Log: undefined;
   History: undefined;

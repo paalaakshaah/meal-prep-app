@@ -27,6 +27,21 @@ export type Macros = {
   sugar: number;
 };
 
+export type Household = {
+  id: string;
+  name: string;
+  created_at: string;
+};
+
+export type Profile = {
+  id: string;
+  household_id: string;
+  name: string;
+  targets_json: string;
+  preferences_json: string;
+  created_at: string;
+};
+
 export type Recipe = {
   id: string;
   household_id: string;

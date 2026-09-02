@@ -70,6 +70,14 @@ export function listRecipes(householdId: string, mealType?: MealType): RecipeWit
   return recipes.map(withMacros);
 }
 
+export function listFavoriteRecipes(householdId: string): RecipeWithMacros[] {
+  const recipes = db.getAllSync<Recipe>(
+    'SELECT * FROM recipes WHERE household_id = ? AND favorite = 1 ORDER BY name COLLATE NOCASE',
+    [householdId]
+  );
+  return recipes.map(withMacros);
+}
+
 export function getRecipe(id: string): RecipeWithMacros | null {
   const recipe = db.getFirstSync<Recipe>('SELECT * FROM recipes WHERE id = ?', [id]);
   return recipe ? withMacros(recipe) : null;
