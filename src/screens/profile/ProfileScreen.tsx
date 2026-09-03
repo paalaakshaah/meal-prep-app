@@ -28,7 +28,8 @@ import type { RootStackParamList } from '../../navigation/types';
 
 type DraftStats = {
   weightKg: string;
-  heightCm: string;
+  heightFt: string;
+  heightIn: string;
   age: string;
   sex: Sex | null;
   activityLevel: ActivityLevel | null;
@@ -37,7 +38,8 @@ type DraftStats = {
 
 const BLANK_STATS: DraftStats = {
   weightKg: '',
-  heightCm: '',
+  heightFt: '',
+  heightIn: '',
   age: '',
   sex: null,
   activityLevel: null,
@@ -46,11 +48,28 @@ const BLANK_STATS: DraftStats = {
 
 const DEFAULT_TARGETS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 };
 
+const CM_PER_INCH = 2.54;
+
+// ProfileStats.heightCm stays metric internally (that's what the BMR formula
+// takes) — feet/inches is purely how the Profile screen displays and edits it.
+function cmToFeetInches(cm: number): { ft: string; inches: string } {
+  const totalInches = Math.round(cm / CM_PER_INCH);
+  const ft = Math.floor(totalInches / 12);
+  const inches = totalInches - ft * 12;
+  return { ft: String(ft), inches: String(inches) };
+}
+
+function feetInchesToCm(ft: number, inches: number): number {
+  return Math.round((ft * 12 + inches) * CM_PER_INCH * 10) / 10;
+}
+
 function draftFromStats(stats: ProfileStats | undefined): DraftStats {
   if (!stats) return BLANK_STATS;
+  const { ft, inches } = cmToFeetInches(stats.heightCm);
   return {
     weightKg: String(stats.weightKg),
-    heightCm: String(stats.heightCm),
+    heightFt: ft,
+    heightIn: inches,
     age: String(stats.age),
     sex: stats.sex,
     activityLevel: stats.activityLevel,
@@ -63,12 +82,20 @@ function draftFromStats(stats: ProfileStats | undefined): DraftStats {
 // the user forgot to check.
 function statsFromDraft(draft: DraftStats): ProfileStats | null {
   const weightKg = Number(draft.weightKg);
-  const heightCm = Number(draft.heightCm);
+  const heightFt = Number(draft.heightFt);
+  const heightIn = Number(draft.heightIn);
   const age = Number(draft.age);
-  if (!draft.weightKg.trim() || !draft.heightCm.trim() || !draft.age.trim()) return null;
-  if (!Number.isFinite(weightKg) || !Number.isFinite(heightCm) || !Number.isFinite(age)) return null;
+  if (!draft.weightKg.trim() || !draft.heightFt.trim() || !draft.heightIn.trim() || !draft.age.trim()) return null;
+  if (![weightKg, heightFt, heightIn, age].every(Number.isFinite)) return null;
   if (!draft.sex || !draft.activityLevel || !draft.pace) return null;
-  return { weightKg, heightCm, age, sex: draft.sex, activityLevel: draft.activityLevel, pace: draft.pace };
+  return {
+    weightKg,
+    heightCm: feetInchesToCm(heightFt, heightIn),
+    age,
+    sex: draft.sex,
+    activityLevel: draft.activityLevel,
+    pace: draft.pace,
+  };
 }
 
 function sanitizeNumText(text: string): string {
@@ -114,7 +141,7 @@ export default function ProfileScreen() {
     if (!complete) {
       Alert.alert(
         'Add your stats first',
-        'Fill in weight, height, age, sex, activity level, and pace to calculate targets.'
+        'Fill in weight, height (ft and in), age, sex, activity level, and pace to calculate targets.'
       );
       return;
     }
@@ -165,10 +192,23 @@ export default function ProfileScreen() {
             />
           </View>
           <View style={styles.statField}>
-            <Text style={styles.statFieldLabel}>Height (cm)</Text>
+            <Text style={styles.statFieldLabel}>Age</Text>
             <TextInput
-              value={stats.heightCm}
-              onChangeText={(t) => setStats((s) => ({ ...s, heightCm: sanitizeNumText(t) }))}
+              value={stats.age}
+              onChangeText={(t) => setStats((s) => ({ ...s, age: sanitizeNumText(t) }))}
+              keyboardType="numeric"
+              placeholder="—"
+              placeholderTextColor={colors.textFaint}
+              style={styles.statInput}
+            />
+          </View>
+        </View>
+        <View style={[styles.statsRow, { marginTop: 10 }]}>
+          <View style={styles.statField}>
+            <Text style={styles.statFieldLabel}>Height (ft)</Text>
+            <TextInput
+              value={stats.heightFt}
+              onChangeText={(t) => setStats((s) => ({ ...s, heightFt: sanitizeNumText(t) }))}
               keyboardType="numeric"
               placeholder="—"
               placeholderTextColor={colors.textFaint}
@@ -176,10 +216,10 @@ export default function ProfileScreen() {
             />
           </View>
           <View style={styles.statField}>
-            <Text style={styles.statFieldLabel}>Age</Text>
+            <Text style={styles.statFieldLabel}>Height (in)</Text>
             <TextInput
-              value={stats.age}
-              onChangeText={(t) => setStats((s) => ({ ...s, age: sanitizeNumText(t) }))}
+              value={stats.heightIn}
+              onChangeText={(t) => setStats((s) => ({ ...s, heightIn: sanitizeNumText(t) }))}
               keyboardType="numeric"
               placeholder="—"
               placeholderTextColor={colors.textFaint}
