@@ -27,7 +27,7 @@ import type { Macros, RecipeWithMacros } from '../../db/types';
 import type { RootStackParamList } from '../../navigation/types';
 
 type DraftStats = {
-  weightKg: string;
+  weightLb: string;
   heightFt: string;
   heightIn: string;
   age: string;
@@ -37,7 +37,7 @@ type DraftStats = {
 };
 
 const BLANK_STATS: DraftStats = {
-  weightKg: '',
+  weightLb: '',
   heightFt: '',
   heightIn: '',
   age: '',
@@ -49,9 +49,10 @@ const BLANK_STATS: DraftStats = {
 const DEFAULT_TARGETS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 };
 
 const CM_PER_INCH = 2.54;
+const KG_PER_LB = 0.45359237;
 
-// ProfileStats.heightCm stays metric internally (that's what the BMR formula
-// takes) — feet/inches is purely how the Profile screen displays and edits it.
+// ProfileStats stays metric internally (that's what the BMR formula takes) —
+// feet/inches and lb are purely how the Profile screen displays and edits it.
 function cmToFeetInches(cm: number): { ft: string; inches: string } {
   const totalInches = Math.round(cm / CM_PER_INCH);
   const ft = Math.floor(totalInches / 12);
@@ -63,11 +64,19 @@ function feetInchesToCm(ft: number, inches: number): number {
   return Math.round((ft * 12 + inches) * CM_PER_INCH * 10) / 10;
 }
 
+function kgToLb(kg: number): string {
+  return String(Math.round((kg / KG_PER_LB) * 10) / 10);
+}
+
+function lbToKg(lb: number): number {
+  return Math.round(lb * KG_PER_LB * 10) / 10;
+}
+
 function draftFromStats(stats: ProfileStats | undefined): DraftStats {
   if (!stats) return BLANK_STATS;
   const { ft, inches } = cmToFeetInches(stats.heightCm);
   return {
-    weightKg: String(stats.weightKg),
+    weightLb: kgToLb(stats.weightKg),
     heightFt: ft,
     heightIn: inches,
     age: String(stats.age),
@@ -81,15 +90,15 @@ function draftFromStats(stats: ProfileStats | undefined): DraftStats {
 // defaulted, since a made-up weight/height/age would look like real data
 // the user forgot to check.
 function statsFromDraft(draft: DraftStats): ProfileStats | null {
-  const weightKg = Number(draft.weightKg);
+  const weightLb = Number(draft.weightLb);
   const heightFt = Number(draft.heightFt);
   const heightIn = Number(draft.heightIn);
   const age = Number(draft.age);
-  if (!draft.weightKg.trim() || !draft.heightFt.trim() || !draft.heightIn.trim() || !draft.age.trim()) return null;
-  if (![weightKg, heightFt, heightIn, age].every(Number.isFinite)) return null;
+  if (!draft.weightLb.trim() || !draft.heightFt.trim() || !draft.heightIn.trim() || !draft.age.trim()) return null;
+  if (![weightLb, heightFt, heightIn, age].every(Number.isFinite)) return null;
   if (!draft.sex || !draft.activityLevel || !draft.pace) return null;
   return {
-    weightKg,
+    weightKg: lbToKg(weightLb),
     heightCm: feetInchesToCm(heightFt, heightIn),
     age,
     sex: draft.sex,
@@ -141,7 +150,7 @@ export default function ProfileScreen() {
     if (!complete) {
       Alert.alert(
         'Add your stats first',
-        'Fill in weight, height (ft and in), age, sex, activity level, and pace to calculate targets.'
+        'Fill in weight (lb), height (ft and in), age, sex, activity level, and pace to calculate targets.'
       );
       return;
     }
@@ -181,10 +190,10 @@ export default function ProfileScreen() {
         <Text style={styles.label}>Stats</Text>
         <View style={styles.statsRow}>
           <View style={styles.statField}>
-            <Text style={styles.statFieldLabel}>Weight (kg)</Text>
+            <Text style={styles.statFieldLabel}>Weight (lb)</Text>
             <TextInput
-              value={stats.weightKg}
-              onChangeText={(t) => setStats((s) => ({ ...s, weightKg: sanitizeNumText(t) }))}
+              value={stats.weightLb}
+              onChangeText={(t) => setStats((s) => ({ ...s, weightLb: sanitizeNumText(t) }))}
               keyboardType="numeric"
               placeholder="—"
               placeholderTextColor={colors.textFaint}
